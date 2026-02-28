@@ -11,6 +11,8 @@ Singleton {
     property var focusedWorkspace: null
     property var focusedClient: null
 
+    property int focusHistoryCounter: 0
+
     property QtObject clients: QtObject {
         property var values: []
     }
@@ -96,17 +98,28 @@ Singleton {
                 if (!data) return;
                 try {
                     let winData = JSON.parse(data);
-                    let mappedClients = winData.map(win => ({
-                        address: win.id,
-                        class: win.app_id,
-                        title: win.title,
-                        workspace: { id: parseInt(win.workspace_id) || 0, name: win.workspace_id },
-                        monitor: parseInt(win.metadata.monitor_id) || 0,
-                        floating: win.is_floating,
-                        fullscreen: win.is_fullscreen,
-                        hidden: win.is_hidden,
-                        mapped: true
-                    }));
+                    let existingClients = root.clients.values || [];
+                    let mappedClients = winData.map(win => {
+                        let existing = existingClients.find(c => c.address === win.id);
+                        let prevFocus = existing && existing.focusHistoryID !== undefined ? existing.focusHistoryID : 999999;
+                        let newFocus = win.is_focused ? (existing && existing.is_focused ? prevFocus : --root.focusHistoryCounter) : prevFocus;
+                        return {
+                            address: win.id,
+                            class: win.app_id,
+                            title: win.title,
+                            workspace: { id: parseInt(win.workspace_id) || 0, name: win.workspace_id },
+                            monitor: parseInt(win.metadata.monitor_id) || 0,
+                            floating: win.is_floating,
+                            fullscreen: win.is_fullscreen,
+                            hidden: win.is_hidden,
+                            mapped: true,
+                            at: [win.metadata?.x || 0, win.metadata?.y || 0],
+                            size: [win.metadata?.width || 100, win.metadata?.height || 100],
+                            xwayland: win.metadata?.xwayland || false,
+                            is_focused: win.is_focused || false,
+                            focusHistoryID: newFocus
+                        };
+                    });
                     root.clients.values = mappedClients;
                     let focused = mappedClients.find(w => w.address === root.focusedClient?.address) || mappedClients.find(w => w.is_focused) || null;
                     if (focused !== root.focusedClient) {
@@ -198,6 +211,35 @@ Singleton {
                     let parsedJson = JSON.parse(data);
                     parsedJson.name = parsedJson.method ? parsedJson.method.split('.').pop().toLowerCase() : "";
                     parsedJson.data = parsedJson.params;
+
+                    if (parsedJson.name === "window_focus" || parsedJson.name === "windowfocused" || parsedJson.name === "activewindow") {
+                        let clientsArray = root.clients.values || [];
+                        let pClass = parsedJson.data && parsedJson.data.Class;
+                        let pTitle = parsedJson.data && parsedJson.data.Title;
+                        let pId = parsedJson.data && parsedJson.data.id;
+                        let updated = false;
+
+                        for (let i = 0; i < clientsArray.length; i++) {
+                            let match = false;
+                            if (pId && clientsArray[i].address === pId) {
+                                match = true;
+                            } else if (!pId && pClass && pTitle && clientsArray[i].class === pClass && clientsArray[i].title === pTitle) {
+                                match = true;
+                            } else if (typeof parsedJson.data === "string" && clientsArray[i].address === parsedJson.data) {
+                                match = true;
+                            }
+
+                            if (match) {
+                                clientsArray[i].focusHistoryID = --root.focusHistoryCounter;
+                                clientsArray[i].is_focused = true;
+                                updated = true;
+                            } else if (clientsArray[i].is_focused) {
+                                clientsArray[i].is_focused = false;
+                                updated = true;
+                            }
+                        }
+                        if (updated) root.clients.values = clientsArray;
+                    }
                     root.rawEvent(parsedJson);
                     fetchInitialState();
                 } catch (e) {
