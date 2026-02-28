@@ -1,7 +1,7 @@
 import QtQuick
 import Quickshell
 import Quickshell.Wayland
-import Quickshell.Hyprland
+import qs.modules.services
 import qs.config
 import qs.modules.bar.workspaces
 
@@ -13,7 +13,7 @@ Item {
     readonly property alias frameEnabled: frameContent.frameEnabled
     readonly property alias baseThickness: frameContent.thickness
     readonly property bool hasFullscreenWindow: {
-        const monitor = Hyprland.monitorFor(targetScreen);
+        const monitor = AxctlService.monitorFor(targetScreen);
         if (!monitor)
             return false;
 
@@ -22,7 +22,7 @@ Item {
 
         // Check active toplevel first (fast path)
         const toplevel = ToplevelManager.activeToplevel;
-        if (toplevel && toplevel.fullscreen && Hyprland.focusedMonitor.id === monId) {
+        if (toplevel && toplevel.fullscreen && AxctlService.focusedMonitor.id === monId) {
             return true;
         }
 

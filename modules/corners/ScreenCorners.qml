@@ -1,14 +1,14 @@
 import QtQuick
 import Quickshell
 import Quickshell.Wayland
-import Quickshell.Hyprland
+import qs.modules.services
 import qs.config
 import qs.modules.bar.workspaces // For HyprlandData
 
 PanelWindow {
     id: screenCorners
 
-    readonly property var monitor: Hyprland.monitorFor(screen);
+    readonly property var monitor: AxctlService.monitorFor(screen);
 
     // Fullscreen detection
     readonly property bool activeWindowFullscreen: {
@@ -20,7 +20,7 @@ PanelWindow {
 
         // Check active toplevel first (fast path)
         const toplevel = ToplevelManager.activeToplevel;
-        if (toplevel && toplevel.fullscreen && Hyprland.focusedMonitor.id === monId) {
+        if (toplevel && toplevel.fullscreen && AxctlService.focusedMonitor.id === monId) {
             return true;
         }
 
