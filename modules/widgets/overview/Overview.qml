@@ -1,6 +1,4 @@
 import QtQuick
-import Quickshell.Hyprland
-import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Effects
@@ -12,6 +10,8 @@ import qs.modules.components
 import qs.modules.bar.workspaces
 import qs.modules.services
 import qs.config
+
+
 
 Item {
     id: overviewRoot
@@ -315,7 +315,7 @@ Item {
                     return wsId > minWs && wsId <= maxWs && win.monitor === monId;
                 }).map(win => ({
                             windowData: win,
-                            toplevel: toplevels.find(t => `0x${t.HyprlandToplevel.address}` === win.address) || null
+                            toplevel: toplevels.find(t => t.appId === (win.class || "") && t.title === (win.title || "")) || null
                         }));
             }
 

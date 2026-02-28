@@ -27,10 +27,16 @@ PanelWindow {
 
     color: "transparent"
 
-    WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
+    // Dynamic keyboard focus: Exclusive when a notch module is open (so text fields work),
+    // None otherwise (so compositor receives normal input).
+    WlrLayershell.keyboardFocus: notchContent.screenNotchOpen ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
     WlrLayershell.namespace: "ambxst"
     WlrLayershell.layer: WlrLayer.Overlay
     exclusionMode: ExclusionMode.Ignore
+
+    // Whether we need to capture full-screen input for click-outside detection.
+    // True when notch modules are open OR any FocusGrab is active (e.g., BarPopups).
+    readonly property bool needsFullScreenInput: notchContent.screenNotchOpen || FocusGrabManager.hasActiveGrab
 
     readonly property bool barEnabled: {
         if (!Config.barReady) return false;
@@ -123,10 +129,18 @@ PanelWindow {
         Visibilities.unregisterDock(screen.name);
     }
 
+    // Full-screen mask item (used when modules/popups are open)
+    Item {
+        id: fullScreenMask
+        anchors.fill: parent
+    }
+
     // Mask Region Logic
-    // We use nested regions to define non-contiguous hit areas for each component.
-    // This allows clicking through the empty space between the Bar, Notch, and Dock.
+    // When a module or popup is open, expand to full-screen to capture click-outside.
+    // Otherwise, restrict input to Bar, Notch, and Dock hitboxes only.
     mask: Region {
+        // Full-screen capture when any module/popup is open
+        item: unifiedPanel.needsFullScreenInput ? fullScreenMask : null
         regions: [
             Region {
                 item: barContent.visible ? barContent.barHitbox : null
@@ -141,18 +155,31 @@ PanelWindow {
         ]
     }
 
-    // Focus Grab for Notch
+    // Focus Grab for Notch — registers with FocusGrabManager for click-outside coordination
     FocusGrab {
         id: focusGrab
-        windows: {
-            let windowList = [unifiedPanel];
-            // Optionally add other windows if needed, but since we are one window, this might be enough.
-            return windowList;
-        }
+        windows: [unifiedPanel]
         active: notchContent.screenNotchOpen
 
         onCleared: {
             Visibilities.setActiveModule("");
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // CLICK-OUTSIDE BACKDROP
+    // ═══════════════════════════════════════════════════════════════
+
+    // Transparent backdrop that captures clicks on empty areas when modules/popups are open.
+    // z: -1 ensures it's below all visual content (bar, notch, dock).
+    MouseArea {
+        id: backdropArea
+        anchors.fill: parent
+        visible: unifiedPanel.needsFullScreenInput
+        z: -1
+
+        onClicked: {
+            FocusGrabManager.clearTopGrab();
         }
     }
 

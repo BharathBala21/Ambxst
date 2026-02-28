@@ -24,7 +24,7 @@ PanelWindow {
     color: "transparent"
 
     WlrLayershell.layer: WlrLayer.Overlay
-    WlrLayershell.keyboardFocus: WlrKeyboardFocus.OnDemand
+    WlrLayershell.keyboardFocus: overviewOpen ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
 
     // Get this screen's visibility state
     readonly property var screenVisibilities: Visibilities.getForScreen(screen.name)

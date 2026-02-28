@@ -1176,6 +1176,36 @@ Singleton {
                 }
             }
 
+            // Migrate compositor wrapper -> direct layouts (Phase C: compositor-agnostic)
+            if (current.custom && current.custom.length > 0) {
+                for (let i = 0; i < current.custom.length; i++) {
+                    const bind = current.custom[i];
+                    if (bind.actions) {
+                        for (let a = 0; a < bind.actions.length; a++) {
+                            const action = bind.actions[a];
+                            // Migrate compositor.layouts -> action.layouts
+                            if (action.compositor) {
+                                if (action.compositor.layouts && action.compositor.layouts.length > 0 && !action.layouts) {
+                                    action.layouts = action.compositor.layouts;
+                                }
+                                delete action.compositor;
+                                needsUpdate = true;
+                            }
+                            // Migrate hyprctl dispatch dpms -> axctl monitor set-dpms
+                            if (action.dispatcher === "exec" && action.argument) {
+                                if (action.argument === "hyprctl dispatch dpms off") {
+                                    action.argument = "axctl monitor set-dpms 0";
+                                    needsUpdate = true;
+                                } else if (action.argument === "hyprctl dispatch dpms on") {
+                                    action.argument = "axctl monitor set-dpms 1";
+                                    needsUpdate = true;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             if (needsUpdate) {
                 console.log("Auto-repairing binds.json: adding missing binds");
                 keybindsLoader.setText(JSON.stringify(current, null, 4));
@@ -1246,31 +1276,34 @@ Singleton {
                                 "dispatcher": bind.dispatcher || "",
                                 "argument": bind.argument || "",
                                 "flags": bind.flags || "",
-                                "compositor": {
-                                    "type": "compositor",
-                                    "layouts": []
-                                }
+                                "layouts": []
                             }
                         ],
                         "enabled": bind.enabled !== false
                     });
                 } else {
-                    // Check if actions need compositor field added
+                    // Check if actions need layouts field (previously compositor wrapper)
                     let actionsNeedUpdate = false;
                     let normalizedActions = [];
 
                     for (let a = 0; a < bind.actions.length; a++) {
                         let action = bind.actions[a];
-                        if (action.compositor === undefined) {
+                        if (action.compositor) {
+                            // Migrate old compositor wrapper to direct layouts
                             actionsNeedUpdate = true;
                             normalizedActions.push({
                                 "dispatcher": action.dispatcher || "",
                                 "argument": action.argument || "",
                                 "flags": action.flags || "",
-                                "compositor": {
-                                    "type": "compositor",
-                                    "layouts": []
-                                }
+                                "layouts": (action.compositor.layouts && action.compositor.layouts.length > 0) ? action.compositor.layouts : []
+                            });
+                        } else if (action.layouts === undefined) {
+                            actionsNeedUpdate = true;
+                            normalizedActions.push({
+                                "dispatcher": action.dispatcher || "",
+                                "argument": action.argument || "",
+                                "flags": action.flags || "",
+                                "layouts": []
                             });
                         } else {
                             normalizedActions.push(action);
@@ -1292,7 +1325,7 @@ Singleton {
             }
 
             if (needsUpdate) {
-                console.log("Normalizing custom binds: migrating to new keys/actions/compositor format");
+                console.log("Normalizing custom binds: migrating to new keys/actions/layouts format");
                 adapter.custom = normalizedBinds;
             }
         }
@@ -1477,10 +1510,7 @@ Singleton {
                             "dispatcher": "killactive",
                             "argument": "",
                             "flags": "",
-                            "compositor": {
-                                "type": "compositor",
-                                "layouts": []
-                            }
+                            "layouts": []
                         }
                     ],
                     "enabled": true
@@ -1500,10 +1530,7 @@ Singleton {
                             "dispatcher": "workspace",
                             "argument": "1",
                             "flags": "",
-                            "compositor": {
-                                "type": "compositor",
-                                "layouts": []
-                            }
+                            "layouts": []
                         }
                     ],
                     "enabled": true
@@ -1521,10 +1548,7 @@ Singleton {
                             "dispatcher": "workspace",
                             "argument": "2",
                             "flags": "",
-                            "compositor": {
-                                "type": "compositor",
-                                "layouts": []
-                            }
+                            "layouts": []
                         }
                     ],
                     "enabled": true
@@ -1542,10 +1566,7 @@ Singleton {
                             "dispatcher": "workspace",
                             "argument": "3",
                             "flags": "",
-                            "compositor": {
-                                "type": "compositor",
-                                "layouts": []
-                            }
+                            "layouts": []
                         }
                     ],
                     "enabled": true
@@ -1563,10 +1584,7 @@ Singleton {
                             "dispatcher": "workspace",
                             "argument": "4",
                             "flags": "",
-                            "compositor": {
-                                "type": "compositor",
-                                "layouts": []
-                            }
+                            "layouts": []
                         }
                     ],
                     "enabled": true
@@ -1584,10 +1602,7 @@ Singleton {
                             "dispatcher": "workspace",
                             "argument": "5",
                             "flags": "",
-                            "compositor": {
-                                "type": "compositor",
-                                "layouts": []
-                            }
+                            "layouts": []
                         }
                     ],
                     "enabled": true
@@ -1605,10 +1620,7 @@ Singleton {
                             "dispatcher": "workspace",
                             "argument": "6",
                             "flags": "",
-                            "compositor": {
-                                "type": "compositor",
-                                "layouts": []
-                            }
+                            "layouts": []
                         }
                     ],
                     "enabled": true
@@ -1626,10 +1638,7 @@ Singleton {
                             "dispatcher": "workspace",
                             "argument": "7",
                             "flags": "",
-                            "compositor": {
-                                "type": "compositor",
-                                "layouts": []
-                            }
+                            "layouts": []
                         }
                     ],
                     "enabled": true
@@ -1647,10 +1656,7 @@ Singleton {
                             "dispatcher": "workspace",
                             "argument": "8",
                             "flags": "",
-                            "compositor": {
-                                "type": "compositor",
-                                "layouts": []
-                            }
+                            "layouts": []
                         }
                     ],
                     "enabled": true
@@ -1668,10 +1674,7 @@ Singleton {
                             "dispatcher": "workspace",
                             "argument": "9",
                             "flags": "",
-                            "compositor": {
-                                "type": "compositor",
-                                "layouts": []
-                            }
+                            "layouts": []
                         }
                     ],
                     "enabled": true
@@ -1689,10 +1692,7 @@ Singleton {
                             "dispatcher": "workspace",
                             "argument": "10",
                             "flags": "",
-                            "compositor": {
-                                "type": "compositor",
-                                "layouts": []
-                            }
+                            "layouts": []
                         }
                     ],
                     "enabled": true
@@ -1712,10 +1712,7 @@ Singleton {
                             "dispatcher": "movetoworkspace",
                             "argument": "1",
                             "flags": "",
-                            "compositor": {
-                                "type": "compositor",
-                                "layouts": []
-                            }
+                            "layouts": []
                         }
                     ],
                     "enabled": true
@@ -1733,10 +1730,7 @@ Singleton {
                             "dispatcher": "movetoworkspace",
                             "argument": "2",
                             "flags": "",
-                            "compositor": {
-                                "type": "compositor",
-                                "layouts": []
-                            }
+                            "layouts": []
                         }
                     ],
                     "enabled": true
@@ -1754,10 +1748,7 @@ Singleton {
                             "dispatcher": "movetoworkspace",
                             "argument": "3",
                             "flags": "",
-                            "compositor": {
-                                "type": "compositor",
-                                "layouts": []
-                            }
+                            "layouts": []
                         }
                     ],
                     "enabled": true
@@ -1775,10 +1766,7 @@ Singleton {
                             "dispatcher": "movetoworkspace",
                             "argument": "4",
                             "flags": "",
-                            "compositor": {
-                                "type": "compositor",
-                                "layouts": []
-                            }
+                            "layouts": []
                         }
                     ],
                     "enabled": true
@@ -1796,10 +1784,7 @@ Singleton {
                             "dispatcher": "movetoworkspace",
                             "argument": "5",
                             "flags": "",
-                            "compositor": {
-                                "type": "compositor",
-                                "layouts": []
-                            }
+                            "layouts": []
                         }
                     ],
                     "enabled": true
@@ -1817,10 +1802,7 @@ Singleton {
                             "dispatcher": "movetoworkspace",
                             "argument": "6",
                             "flags": "",
-                            "compositor": {
-                                "type": "compositor",
-                                "layouts": []
-                            }
+                            "layouts": []
                         }
                     ],
                     "enabled": true
@@ -1838,10 +1820,7 @@ Singleton {
                             "dispatcher": "movetoworkspace",
                             "argument": "7",
                             "flags": "",
-                            "compositor": {
-                                "type": "compositor",
-                                "layouts": []
-                            }
+                            "layouts": []
                         }
                     ],
                     "enabled": true
@@ -1859,10 +1838,7 @@ Singleton {
                             "dispatcher": "movetoworkspace",
                             "argument": "8",
                             "flags": "",
-                            "compositor": {
-                                "type": "compositor",
-                                "layouts": []
-                            }
+                            "layouts": []
                         }
                     ],
                     "enabled": true
@@ -1880,10 +1856,7 @@ Singleton {
                             "dispatcher": "movetoworkspace",
                             "argument": "9",
                             "flags": "",
-                            "compositor": {
-                                "type": "compositor",
-                                "layouts": []
-                            }
+                            "layouts": []
                         }
                     ],
                     "enabled": true
@@ -1901,10 +1874,7 @@ Singleton {
                             "dispatcher": "movetoworkspace",
                             "argument": "10",
                             "flags": "",
-                            "compositor": {
-                                "type": "compositor",
-                                "layouts": []
-                            }
+                            "layouts": []
                         }
                     ],
                     "enabled": true
@@ -1924,10 +1894,7 @@ Singleton {
                             "dispatcher": "workspace",
                             "argument": "e-1",
                             "flags": "",
-                            "compositor": {
-                                "type": "compositor",
-                                "layouts": []
-                            }
+                            "layouts": []
                         }
                     ],
                     "enabled": true
@@ -1945,10 +1912,7 @@ Singleton {
                             "dispatcher": "workspace",
                             "argument": "e+1",
                             "flags": "",
-                            "compositor": {
-                                "type": "compositor",
-                                "layouts": []
-                            }
+                            "layouts": []
                         }
                     ],
                     "enabled": true
@@ -1966,10 +1930,7 @@ Singleton {
                             "dispatcher": "workspace",
                             "argument": "e-1",
                             "flags": "",
-                            "compositor": {
-                                "type": "compositor",
-                                "layouts": []
-                            }
+                            "layouts": []
                         }
                     ],
                     "enabled": true
@@ -1987,10 +1948,7 @@ Singleton {
                             "dispatcher": "workspace",
                             "argument": "e+1",
                             "flags": "",
-                            "compositor": {
-                                "type": "compositor",
-                                "layouts": []
-                            }
+                            "layouts": []
                         }
                     ],
                     "enabled": true
@@ -2008,10 +1966,7 @@ Singleton {
                             "dispatcher": "workspace",
                             "argument": "-1",
                             "flags": "",
-                            "compositor": {
-                                "type": "compositor",
-                                "layouts": []
-                            }
+                            "layouts": []
                         }
                     ],
                     "enabled": true
@@ -2029,10 +1984,7 @@ Singleton {
                             "dispatcher": "workspace",
                             "argument": "+1",
                             "flags": "",
-                            "compositor": {
-                                "type": "compositor",
-                                "layouts": []
-                            }
+                            "layouts": []
                         }
                     ],
                     "enabled": true
@@ -2052,10 +2004,7 @@ Singleton {
                             "dispatcher": "movewindow",
                             "argument": "",
                             "flags": "m",
-                            "compositor": {
-                                "type": "compositor",
-                                "layouts": []
-                            }
+                            "layouts": []
                         }
                     ],
                     "enabled": true
@@ -2073,10 +2022,7 @@ Singleton {
                             "dispatcher": "resizewindow",
                             "argument": "",
                             "flags": "m",
-                            "compositor": {
-                                "type": "compositor",
-                                "layouts": []
-                            }
+                            "layouts": []
                         }
                     ],
                     "enabled": true
@@ -2096,10 +2042,7 @@ Singleton {
                             "dispatcher": "exec",
                             "argument": "playerctl play-pause",
                             "flags": "",
-                            "compositor": {
-                                "type": "compositor",
-                                "layouts": []
-                            }
+                            "layouts": []
                         }
                     ],
                     "enabled": true
@@ -2117,10 +2060,7 @@ Singleton {
                             "dispatcher": "exec",
                             "argument": "playerctl previous",
                             "flags": "",
-                            "compositor": {
-                                "type": "compositor",
-                                "layouts": []
-                            }
+                            "layouts": []
                         }
                     ],
                     "enabled": true
@@ -2138,10 +2078,7 @@ Singleton {
                             "dispatcher": "exec",
                             "argument": "playerctl next",
                             "flags": "",
-                            "compositor": {
-                                "type": "compositor",
-                                "layouts": []
-                            }
+                            "layouts": []
                         }
                     ],
                     "enabled": true
@@ -2159,10 +2096,7 @@ Singleton {
                             "dispatcher": "exec",
                             "argument": "playerctl play-pause",
                             "flags": "l",
-                            "compositor": {
-                                "type": "compositor",
-                                "layouts": []
-                            }
+                            "layouts": []
                         }
                     ],
                     "enabled": true
@@ -2180,10 +2114,7 @@ Singleton {
                             "dispatcher": "exec",
                             "argument": "playerctl stop",
                             "flags": "l",
-                            "compositor": {
-                                "type": "compositor",
-                                "layouts": []
-                            }
+                            "layouts": []
                         }
                     ],
                     "enabled": true
@@ -2203,10 +2134,7 @@ Singleton {
                             "dispatcher": "exec",
                             "argument": "wpctl set-volume -l 1 @DEFAULT_AUDIO_SINK@ 10%+",
                             "flags": "le",
-                            "compositor": {
-                                "type": "compositor",
-                                "layouts": []
-                            }
+                            "layouts": []
                         }
                     ],
                     "enabled": true
@@ -2224,10 +2152,7 @@ Singleton {
                             "dispatcher": "exec",
                             "argument": "wpctl set-volume -l 1 @DEFAULT_AUDIO_SINK@ 10%-",
                             "flags": "le",
-                            "compositor": {
-                                "type": "compositor",
-                                "layouts": []
-                            }
+                            "layouts": []
                         }
                     ],
                     "enabled": true
@@ -2245,10 +2170,7 @@ Singleton {
                             "dispatcher": "exec",
                             "argument": "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle",
                             "flags": "le",
-                            "compositor": {
-                                "type": "compositor",
-                                "layouts": []
-                            }
+                            "layouts": []
                         }
                     ],
                     "enabled": true
@@ -2268,10 +2190,7 @@ Singleton {
                             "dispatcher": "exec",
                             "argument": "ambxst brightness +5",
                             "flags": "le",
-                            "compositor": {
-                                "type": "compositor",
-                                "layouts": []
-                            }
+                            "layouts": []
                         }
                     ],
                     "enabled": true
@@ -2289,10 +2208,7 @@ Singleton {
                             "dispatcher": "exec",
                             "argument": "ambxst brightness -5",
                             "flags": "le",
-                            "compositor": {
-                                "type": "compositor",
-                                "layouts": []
-                            }
+                            "layouts": []
                         }
                     ],
                     "enabled": true
@@ -2312,10 +2228,7 @@ Singleton {
                             "dispatcher": "exec",
                             "argument": "notify-send \"Soon\"",
                             "flags": "",
-                            "compositor": {
-                                "type": "compositor",
-                                "layouts": []
-                            }
+                            "layouts": []
                         }
                     ],
                     "enabled": true
@@ -2335,10 +2248,7 @@ Singleton {
                             "dispatcher": "togglespecialworkspace",
                             "argument": "",
                             "flags": "",
-                            "compositor": {
-                                "type": "compositor",
-                                "layouts": []
-                            }
+                            "layouts": []
                         }
                     ],
                     "enabled": true
@@ -2356,10 +2266,7 @@ Singleton {
                             "dispatcher": "movetoworkspace",
                             "argument": "special",
                             "flags": "",
-                            "compositor": {
-                                "type": "compositor",
-                                "layouts": []
-                            }
+                            "layouts": []
                         }
                     ],
                     "enabled": true
@@ -2379,10 +2286,7 @@ Singleton {
                             "dispatcher": "exec",
                             "argument": "loginctl lock-session",
                             "flags": "l",
-                            "compositor": {
-                                "type": "compositor",
-                                "layouts": []
-                            }
+                            "layouts": []
                         }
                     ],
                     "enabled": true
@@ -2400,10 +2304,7 @@ Singleton {
                             "dispatcher": "exec",
                             "argument": "axctl monitor set-dpms 0 0",
                             "flags": "l",
-                            "compositor": {
-                                "type": "compositor",
-                                "layouts": []
-                            }
+                            "layouts": []
                         }
                     ],
                     "enabled": true
@@ -2421,10 +2322,7 @@ Singleton {
                             "dispatcher": "exec",
                             "argument": "axctl monitor set-dpms 0 1",
                             "flags": "l",
-                            "compositor": {
-                                "type": "compositor",
-                                "layouts": []
-                            }
+                            "layouts": []
                         }
                     ],
                     "enabled": true
@@ -2448,19 +2346,13 @@ Singleton {
                             "dispatcher": "layoutmsg",
                             "argument": "focus u",
                             "flags": "",
-                            "compositor": {
-                                "type": "compositor",
-                                "layouts": ["scrolling"]
-                            }
+                            "layouts": ["scrolling"]
                         },
                         {
                             "dispatcher": "movefocus",
                             "argument": "u",
                             "flags": "",
-                            "compositor": {
-                                "type": "compositor",
-                                "layouts": ["dwindle", "master"]
-                            }
+                            "layouts": ["dwindle", "master"]
                         }
                     ],
                     "enabled": true
@@ -2482,19 +2374,13 @@ Singleton {
                             "dispatcher": "layoutmsg",
                             "argument": "focus d",
                             "flags": "",
-                            "compositor": {
-                                "type": "compositor",
-                                "layouts": ["scrolling"]
-                            }
+                            "layouts": ["scrolling"]
                         },
                         {
                             "dispatcher": "movefocus",
                             "argument": "d",
                             "flags": "",
-                            "compositor": {
-                                "type": "compositor",
-                                "layouts": ["master", "dwindle"]
-                            }
+                            "layouts": ["master", "dwindle"]
                         }
                     ],
                     "enabled": true
@@ -2520,19 +2406,13 @@ Singleton {
                             "dispatcher": "layoutmsg",
                             "argument": "focus l",
                             "flags": "",
-                            "compositor": {
-                                "type": "compositor",
-                                "layouts": ["scrolling"]
-                            }
+                            "layouts": ["scrolling"]
                         },
                         {
                             "dispatcher": "movefocus",
                             "argument": "l",
                             "flags": "",
-                            "compositor": {
-                                "type": "compositor",
-                                "layouts": ["dwindle", "master"]
-                            }
+                            "layouts": ["dwindle", "master"]
                         }
                     ],
                     "enabled": true
@@ -2558,19 +2438,13 @@ Singleton {
                             "dispatcher": "layoutmsg",
                             "argument": "focus r",
                             "flags": "",
-                            "compositor": {
-                                "type": "compositor",
-                                "layouts": ["scrolling"]
-                            }
+                            "layouts": ["scrolling"]
                         },
                         {
                             "dispatcher": "movefocus",
                             "argument": "r",
                             "flags": "",
-                            "compositor": {
-                                "type": "compositor",
-                                "layouts": ["master", "dwindle"]
-                            }
+                            "layouts": ["master", "dwindle"]
                         }
                     ],
                     "enabled": true
@@ -2594,19 +2468,13 @@ Singleton {
                             "dispatcher": "movewindow",
                             "argument": "l",
                             "flags": "",
-                            "compositor": {
-                                "type": "compositor",
-                                "layouts": ["master", "dwindle"]
-                            }
+                            "layouts": ["master", "dwindle"]
                         },
                         {
                             "dispatcher": "layoutmsg",
                             "argument": "movewindowto l",
                             "flags": "",
-                            "compositor": {
-                                "type": "compositor",
-                                "layouts": ["scrolling"]
-                            }
+                            "layouts": ["scrolling"]
                         }
                     ],
                     "enabled": true
@@ -2628,19 +2496,13 @@ Singleton {
                             "dispatcher": "movewindow",
                             "argument": "r",
                             "flags": "",
-                            "compositor": {
-                                "type": "compositor",
-                                "layouts": ["dwindle", "master"]
-                            }
+                            "layouts": ["dwindle", "master"]
                         },
                         {
                             "dispatcher": "layoutmsg",
                             "argument": "movewindowto r",
                             "flags": "",
-                            "compositor": {
-                                "type": "compositor",
-                                "layouts": ["scrolling"]
-                            }
+                            "layouts": ["scrolling"]
                         }
                     ],
                     "enabled": true
@@ -2662,19 +2524,13 @@ Singleton {
                             "dispatcher": "movewindow",
                             "argument": "u",
                             "flags": "",
-                            "compositor": {
-                                "type": "compositor",
-                                "layouts": ["master", "dwindle"]
-                            }
+                            "layouts": ["master", "dwindle"]
                         },
                         {
                             "dispatcher": "layoutmsg",
                             "argument": "movewindowto u",
                             "flags": "",
-                            "compositor": {
-                                "type": "compositor",
-                                "layouts": ["scrolling"]
-                            }
+                            "layouts": ["scrolling"]
                         }
                     ],
                     "enabled": true
@@ -2696,19 +2552,13 @@ Singleton {
                             "dispatcher": "movewindow",
                             "argument": "d",
                             "flags": "",
-                            "compositor": {
-                                "type": "compositor",
-                                "layouts": ["master", "dwindle"]
-                            }
+                            "layouts": ["master", "dwindle"]
                         },
                         {
                             "dispatcher": "layoutmsg",
                             "argument": "movewindowto d",
                             "flags": "",
-                            "compositor": {
-                                "type": "compositor",
-                                "layouts": []
-                            }
+                            "layouts": []
                         }
                     ],
                     "enabled": true
@@ -2732,19 +2582,13 @@ Singleton {
                             "dispatcher": "layoutmsg",
                             "argument": "colresize +0.1",
                             "flags": "",
-                            "compositor": {
-                                "type": "compositor",
-                                "layouts": ["scrolling"]
-                            }
+                            "layouts": ["scrolling"]
                         },
                         {
                             "dispatcher": "resizeactive",
                             "argument": "50 0",
                             "flags": "",
-                            "compositor": {
-                                "type": "compositor",
-                                "layouts": ["master", "dwindle"]
-                            }
+                            "layouts": ["master", "dwindle"]
                         }
                     ],
                     "enabled": true
@@ -2766,19 +2610,13 @@ Singleton {
                             "dispatcher": "layoutmsg",
                             "argument": "colresize -0.1",
                             "flags": "",
-                            "compositor": {
-                                "type": "compositor",
-                                "layouts": ["scrolling"]
-                            }
+                            "layouts": ["scrolling"]
                         },
                         {
                             "dispatcher": "resizeactive",
                             "argument": "-50 0",
                             "flags": "",
-                            "compositor": {
-                                "type": "compositor",
-                                "layouts": ["master", "dwindle"]
-                            }
+                            "layouts": ["master", "dwindle"]
                         }
                     ],
                     "enabled": true
@@ -2800,10 +2638,7 @@ Singleton {
                             "dispatcher": "resizeactive",
                             "argument": "0 50",
                             "flags": "",
-                            "compositor": {
-                                "type": "compositor",
-                                "layouts": []
-                            }
+                            "layouts": []
                         }
                     ],
                     "enabled": true
@@ -2825,10 +2660,7 @@ Singleton {
                             "dispatcher": "resizeactive",
                             "argument": "0 -50",
                             "flags": "",
-                            "compositor": {
-                                "type": "compositor",
-                                "layouts": []
-                            }
+                            "layouts": []
                         }
                     ],
                     "enabled": true
@@ -2848,10 +2680,7 @@ Singleton {
                             "dispatcher": "layoutmsg",
                             "argument": "promote",
                             "flags": "",
-                            "compositor": {
-                                "type": "compositor",
-                                "layouts": ["scrolling"]
-                            }
+                            "layouts": ["scrolling"]
                         }
                     ],
                     "enabled": true
@@ -2869,10 +2698,7 @@ Singleton {
                             "dispatcher": "layoutmsg",
                             "argument": "togglefit",
                             "flags": "",
-                            "compositor": {
-                                "type": "compositor",
-                                "layouts": ["scrolling"]
-                            }
+                            "layouts": ["scrolling"]
                         }
                     ],
                     "enabled": true
@@ -2890,10 +2716,7 @@ Singleton {
                             "dispatcher": "layoutmsg",
                             "argument": "colresize +conf",
                             "flags": "",
-                            "compositor": {
-                                "type": "compositor",
-                                "layouts": ["scrolling"]
-                            }
+                            "layouts": ["scrolling"]
                         }
                     ],
                     "enabled": true
@@ -2915,10 +2738,7 @@ Singleton {
                             "dispatcher": "layoutmsg",
                             "argument": "swapcol l",
                             "flags": "",
-                            "compositor": {
-                                "type": "compositor",
-                                "layouts": ["scrolling"]
-                            }
+                            "layouts": ["scrolling"]
                         }
                     ],
                     "enabled": true
@@ -2940,10 +2760,7 @@ Singleton {
                             "dispatcher": "layoutmsg",
                             "argument": "swapcol r",
                             "flags": "",
-                            "compositor": {
-                                "type": "compositor",
-                                "layouts": ["scrolling"]
-                            }
+                            "layouts": ["scrolling"]
                         }
                     ],
                     "enabled": true
@@ -2963,10 +2780,7 @@ Singleton {
                             "dispatcher": "layoutmsg",
                             "argument": "movecoltoworkspace 1",
                             "flags": "",
-                            "compositor": {
-                                "type": "compositor",
-                                "layouts": ["scrolling"]
-                            }
+                            "layouts": ["scrolling"]
                         }
                     ],
                     "enabled": true
@@ -2984,10 +2798,7 @@ Singleton {
                             "dispatcher": "layoutmsg",
                             "argument": "movecoltoworkspace 2",
                             "flags": "",
-                            "compositor": {
-                                "type": "compositor",
-                                "layouts": ["scrolling"]
-                            }
+                            "layouts": ["scrolling"]
                         }
                     ],
                     "enabled": true
@@ -3005,10 +2816,7 @@ Singleton {
                             "dispatcher": "layoutmsg",
                             "argument": "movecoltoworkspace 3",
                             "flags": "",
-                            "compositor": {
-                                "type": "compositor",
-                                "layouts": ["scrolling"]
-                            }
+                            "layouts": ["scrolling"]
                         }
                     ],
                     "enabled": true
@@ -3026,10 +2834,7 @@ Singleton {
                             "dispatcher": "layoutmsg",
                             "argument": "movecoltoworkspace 4",
                             "flags": "",
-                            "compositor": {
-                                "type": "compositor",
-                                "layouts": ["scrolling"]
-                            }
+                            "layouts": ["scrolling"]
                         }
                     ],
                     "enabled": true
@@ -3047,10 +2852,7 @@ Singleton {
                             "dispatcher": "layoutmsg",
                             "argument": "movecoltoworkspace 5",
                             "flags": "",
-                            "compositor": {
-                                "type": "compositor",
-                                "layouts": ["scrolling"]
-                            }
+                            "layouts": ["scrolling"]
                         }
                     ],
                     "enabled": true
@@ -3068,10 +2870,7 @@ Singleton {
                             "dispatcher": "layoutmsg",
                             "argument": "movecoltoworkspace 6",
                             "flags": "",
-                            "compositor": {
-                                "type": "compositor",
-                                "layouts": ["scrolling"]
-                            }
+                            "layouts": ["scrolling"]
                         }
                     ],
                     "enabled": true
@@ -3089,10 +2888,7 @@ Singleton {
                             "dispatcher": "layoutmsg",
                             "argument": "movecoltoworkspace 7",
                             "flags": "",
-                            "compositor": {
-                                "type": "compositor",
-                                "layouts": ["scrolling"]
-                            }
+                            "layouts": ["scrolling"]
                         }
                     ],
                     "enabled": true
@@ -3110,10 +2906,7 @@ Singleton {
                             "dispatcher": "layoutmsg",
                             "argument": "movecoltoworkspace 8",
                             "flags": "",
-                            "compositor": {
-                                "type": "compositor",
-                                "layouts": ["scrolling"]
-                            }
+                            "layouts": ["scrolling"]
                         }
                     ],
                     "enabled": true
@@ -3131,10 +2924,7 @@ Singleton {
                             "dispatcher": "layoutmsg",
                             "argument": "movecoltoworkspace 9",
                             "flags": "",
-                            "compositor": {
-                                "type": "compositor",
-                                "layouts": ["scrolling"]
-                            }
+                            "layouts": ["scrolling"]
                         }
                     ],
                     "enabled": true
@@ -3152,10 +2942,7 @@ Singleton {
                             "dispatcher": "layoutmsg",
                             "argument": "movecoltoworkspace 10",
                             "flags": "",
-                            "compositor": {
-                                "type": "compositor",
-                                "layouts": ["scrolling"]
-                            }
+                            "layouts": ["scrolling"]
                         }
                     ],
                     "enabled": true

@@ -26,21 +26,13 @@ QtObject {
 
     // Helper function to check if an action is compatible with the current layout
     function isActionCompatibleWithLayout(action) {
-        // If no compositor specified, action works everywhere
-        if (!action.compositor)
-            return true;
-
-        // If compositor type does not match, skip (future-proofing)
-        if (action.compositor.type && action.compositor.type !== "compositor")
-            return false;
-
         // If no layouts specified or empty array, action works in all layouts
-        if (!action.compositor.layouts || action.compositor.layouts.length === 0)
+        if (!action.layouts || action.layouts.length === 0)
             return true;
 
         // Check if current layout is in the allowed list
         const currentLayout = GlobalStates.compositorLayout;
-        return action.compositor.layouts.indexOf(currentLayout) !== -1;
+        return action.layouts.indexOf(currentLayout) !== -1;
     }
 
     function cloneKeybind(keybind) {
@@ -105,6 +97,38 @@ QtObject {
         hasPreviousBinds = true;
     }
 
+    // Build an unbind target object (modifiers + key only).
+    function makeUnbindTarget(keybind) {
+        return {
+            modifiers: keybind.modifiers || [],
+            key: keybind.key || ""
+        };
+    }
+
+    // Build a structured bind object from a core keybind (has all fields inline).
+    function makeBindFromCore(keybind) {
+        return {
+            modifiers: keybind.modifiers || [],
+            key: keybind.key || "",
+            dispatcher: keybind.dispatcher || "",
+            argument: keybind.argument || "",
+            flags: keybind.flags || "",
+            enabled: true
+        };
+    }
+
+    // Build a structured bind object from a key + action pair (custom keybinds).
+    function makeBindFromKeyAction(keyObj, action) {
+        return {
+            modifiers: keyObj.modifiers || [],
+            key: keyObj.key || "",
+            dispatcher: action.dispatcher || "",
+            argument: action.argument || "",
+            flags: action.flags || "",
+            enabled: true
+        };
+    }
+
     function applyKeybindsInternal() {
         // Ensure adapter is loaded.
         if (!Config.keybindsLoader.loaded) {
@@ -120,88 +144,35 @@ QtObject {
 
         console.log("CompositorKeybinds: Aplicando keybindings (layout: " + GlobalStates.compositorLayout + ")...");
 
-        // Build unbind list.
-        let unbindCommands = [];
-
-        // Format modifiers.
-        function formatModifiers(modifiers) {
-            if (!modifiers || modifiers.length === 0)
-                return "";
-            return modifiers.join(" ");
-        }
-
-        // Create bind command (old format).
-        function createBindCommand(keybind, flags) {
-            const mods = formatModifiers(keybind.modifiers);
-            const key = keybind.key;
-            const dispatcher = keybind.dispatcher;
-            const argument = keybind.argument || "";
-            const bindKeyword = flags ? `bind${flags}` : "bind";
-            // For bindm, omit argument if empty.
-            if (flags === "m" && !argument) {
-                return `keyword ${bindKeyword} ${mods},${key},${dispatcher}`;
-            }
-            return `keyword ${bindKeyword} ${mods},${key},${dispatcher},${argument}`;
-        }
-
-        // Create unbind command (old format).
-        function createUnbindCommand(keybind) {
-            const mods = formatModifiers(keybind.modifiers);
-            const key = keybind.key;
-            return `keyword unbind ${mods},${key}`;
-        }
-
-        // Create unbind command from key object (new format).
-        function createUnbindFromKey(keyObj) {
-            const mods = formatModifiers(keyObj.modifiers);
-            const key = keyObj.key;
-            return `keyword unbind ${mods},${key}`;
-        }
-
-        // Create bind command from key + action (new format).
-        function createBindFromKeyAction(keyObj, action) {
-            const mods = formatModifiers(keyObj.modifiers);
-            const key = keyObj.key;
-            const dispatcher = action.dispatcher;
-            const argument = action.argument || "";
-            const flags = action.flags || "";
-            const bindKeyword = flags ? `bind${flags}` : "bind";
-            // For bindm, omit argument if empty.
-            if (flags === "m" && !argument) {
-                return `keyword ${bindKeyword} ${mods},${key},${dispatcher}`;
-            }
-            return `keyword ${bindKeyword} ${mods},${key},${dispatcher},${argument}`;
-        }
-
-        // Build batch command for all binds.
-        let batchCommands = [];
+        // Build structured payload.
+        let payload = { binds: [], unbinds: [] };
 
         // First, unbind previous keybinds if we have them stored
         if (hasPreviousBinds) {
             // Unbind previous ambxst core keybinds
             if (previousAmbxstBinds.ambxst) {
-                unbindCommands.push(createUnbindCommand(previousAmbxstBinds.ambxst.launcher));
-                unbindCommands.push(createUnbindCommand(previousAmbxstBinds.ambxst.dashboard));
-                unbindCommands.push(createUnbindCommand(previousAmbxstBinds.ambxst.assistant));
-                unbindCommands.push(createUnbindCommand(previousAmbxstBinds.ambxst.clipboard));
-                unbindCommands.push(createUnbindCommand(previousAmbxstBinds.ambxst.emoji));
-                unbindCommands.push(createUnbindCommand(previousAmbxstBinds.ambxst.notes));
-                unbindCommands.push(createUnbindCommand(previousAmbxstBinds.ambxst.tmux));
-                unbindCommands.push(createUnbindCommand(previousAmbxstBinds.ambxst.wallpapers));
+                payload.unbinds.push(makeUnbindTarget(previousAmbxstBinds.ambxst.launcher));
+                payload.unbinds.push(makeUnbindTarget(previousAmbxstBinds.ambxst.dashboard));
+                payload.unbinds.push(makeUnbindTarget(previousAmbxstBinds.ambxst.assistant));
+                payload.unbinds.push(makeUnbindTarget(previousAmbxstBinds.ambxst.clipboard));
+                payload.unbinds.push(makeUnbindTarget(previousAmbxstBinds.ambxst.emoji));
+                payload.unbinds.push(makeUnbindTarget(previousAmbxstBinds.ambxst.notes));
+                payload.unbinds.push(makeUnbindTarget(previousAmbxstBinds.ambxst.tmux));
+                payload.unbinds.push(makeUnbindTarget(previousAmbxstBinds.ambxst.wallpapers));
             }
 
             // Unbind previous ambxst system keybinds
             if (previousAmbxstBinds.system) {
-                unbindCommands.push(createUnbindCommand(previousAmbxstBinds.system.overview));
-                unbindCommands.push(createUnbindCommand(previousAmbxstBinds.system.powermenu));
-                unbindCommands.push(createUnbindCommand(previousAmbxstBinds.system.config));
-                unbindCommands.push(createUnbindCommand(previousAmbxstBinds.system.lockscreen));
-                unbindCommands.push(createUnbindCommand(previousAmbxstBinds.system.tools));
-                unbindCommands.push(createUnbindCommand(previousAmbxstBinds.system.screenshot));
-                unbindCommands.push(createUnbindCommand(previousAmbxstBinds.system.screenrecord));
-                unbindCommands.push(createUnbindCommand(previousAmbxstBinds.system.lens));
-                if (previousAmbxstBinds.system.reload) unbindCommands.push(createUnbindCommand(previousAmbxstBinds.system.reload));
-                if (previousAmbxstBinds.system.quit) unbindCommands.push(createUnbindCommand(previousAmbxstBinds.system.quit));
+                payload.unbinds.push(makeUnbindTarget(previousAmbxstBinds.system.overview));
+                payload.unbinds.push(makeUnbindTarget(previousAmbxstBinds.system.powermenu));
+                payload.unbinds.push(makeUnbindTarget(previousAmbxstBinds.system.config));
+                payload.unbinds.push(makeUnbindTarget(previousAmbxstBinds.system.lockscreen));
+                payload.unbinds.push(makeUnbindTarget(previousAmbxstBinds.system.tools));
+                payload.unbinds.push(makeUnbindTarget(previousAmbxstBinds.system.screenshot));
+                payload.unbinds.push(makeUnbindTarget(previousAmbxstBinds.system.screenrecord));
+                payload.unbinds.push(makeUnbindTarget(previousAmbxstBinds.system.lens));
+                if (previousAmbxstBinds.system.reload) payload.unbinds.push(makeUnbindTarget(previousAmbxstBinds.system.reload));
+                if (previousAmbxstBinds.system.quit) payload.unbinds.push(makeUnbindTarget(previousAmbxstBinds.system.quit));
             }
 
             // Unbind previous custom keybinds
@@ -209,10 +180,10 @@ QtObject {
                 const prev = previousCustomBinds[i];
                 if (prev.keys) {
                     for (let k = 0; k < prev.keys.length; k++) {
-                        unbindCommands.push(createUnbindFromKey(prev.keys[k]));
+                        payload.unbinds.push(makeUnbindTarget(prev.keys[k]));
                     }
                 } else {
-                    unbindCommands.push(createUnbindCommand(prev));
+                    payload.unbinds.push(makeUnbindTarget(prev));
                 }
             }
         }
@@ -220,48 +191,52 @@ QtObject {
         // Process core keybinds.
         const ambxst = Config.keybindsLoader.adapter.ambxst;
 
-        // Core keybinds
-        unbindCommands.push(createUnbindCommand(ambxst.launcher));
-        unbindCommands.push(createUnbindCommand(ambxst.dashboard));
-        unbindCommands.push(createUnbindCommand(ambxst.assistant));
-        unbindCommands.push(createUnbindCommand(ambxst.clipboard));
-        unbindCommands.push(createUnbindCommand(ambxst.emoji));
-        unbindCommands.push(createUnbindCommand(ambxst.notes));
-        unbindCommands.push(createUnbindCommand(ambxst.tmux));
-        unbindCommands.push(createUnbindCommand(ambxst.wallpapers));
+        // Unbind current core keybinds (ensures clean state before rebinding)
+        payload.unbinds.push(makeUnbindTarget(ambxst.launcher));
+        payload.unbinds.push(makeUnbindTarget(ambxst.dashboard));
+        payload.unbinds.push(makeUnbindTarget(ambxst.assistant));
+        payload.unbinds.push(makeUnbindTarget(ambxst.clipboard));
+        payload.unbinds.push(makeUnbindTarget(ambxst.emoji));
+        payload.unbinds.push(makeUnbindTarget(ambxst.notes));
+        payload.unbinds.push(makeUnbindTarget(ambxst.tmux));
+        payload.unbinds.push(makeUnbindTarget(ambxst.wallpapers));
 
-        batchCommands.push(createBindCommand(ambxst.launcher, ambxst.launcher.flags || ""));
-        batchCommands.push(createBindCommand(ambxst.dashboard, ambxst.dashboard.flags || ""));
-        batchCommands.push(createBindCommand(ambxst.assistant, ambxst.assistant.flags || ""));
-        batchCommands.push(createBindCommand(ambxst.clipboard, ambxst.clipboard.flags || ""));
-        batchCommands.push(createBindCommand(ambxst.emoji, ambxst.emoji.flags || ""));
-        batchCommands.push(createBindCommand(ambxst.notes, ambxst.notes.flags || ""));
-        batchCommands.push(createBindCommand(ambxst.tmux, ambxst.tmux.flags || ""));
-        batchCommands.push(createBindCommand(ambxst.wallpapers, ambxst.wallpapers.flags || ""));
+        // Bind current core keybinds
+        payload.binds.push(makeBindFromCore(ambxst.launcher));
+        payload.binds.push(makeBindFromCore(ambxst.dashboard));
+        payload.binds.push(makeBindFromCore(ambxst.assistant));
+        payload.binds.push(makeBindFromCore(ambxst.clipboard));
+        payload.binds.push(makeBindFromCore(ambxst.emoji));
+        payload.binds.push(makeBindFromCore(ambxst.notes));
+        payload.binds.push(makeBindFromCore(ambxst.tmux));
+        payload.binds.push(makeBindFromCore(ambxst.wallpapers));
 
         // System keybinds
         const system = ambxst.system;
-        unbindCommands.push(createUnbindCommand(system.overview));
-        unbindCommands.push(createUnbindCommand(system.powermenu));
-        unbindCommands.push(createUnbindCommand(system.config));
-        unbindCommands.push(createUnbindCommand(system.lockscreen));
-        unbindCommands.push(createUnbindCommand(system.tools));
-        unbindCommands.push(createUnbindCommand(system.screenshot));
-        unbindCommands.push(createUnbindCommand(system.screenrecord));
-        unbindCommands.push(createUnbindCommand(system.lens));
-        if (system.reload) unbindCommands.push(createUnbindCommand(system.reload));
-        if (system.quit) unbindCommands.push(createUnbindCommand(system.quit));
 
-        batchCommands.push(createBindCommand(system.overview, system.overview.flags || ""));
-        batchCommands.push(createBindCommand(system.powermenu, system.powermenu.flags || ""));
-        batchCommands.push(createBindCommand(system.config, system.config.flags || ""));
-        batchCommands.push(createBindCommand(system.lockscreen, system.lockscreen.flags || ""));
-        batchCommands.push(createBindCommand(system.tools, system.tools.flags || ""));
-        batchCommands.push(createBindCommand(system.screenshot, system.screenshot.flags || ""));
-        batchCommands.push(createBindCommand(system.screenrecord, system.screenrecord.flags || ""));
-        batchCommands.push(createBindCommand(system.lens, system.lens.flags || ""));
-        if (system.reload) batchCommands.push(createBindCommand(system.reload, system.reload.flags || ""));
-        if (system.quit) batchCommands.push(createBindCommand(system.quit, system.quit.flags || ""));
+        // Unbind current system keybinds
+        payload.unbinds.push(makeUnbindTarget(system.overview));
+        payload.unbinds.push(makeUnbindTarget(system.powermenu));
+        payload.unbinds.push(makeUnbindTarget(system.config));
+        payload.unbinds.push(makeUnbindTarget(system.lockscreen));
+        payload.unbinds.push(makeUnbindTarget(system.tools));
+        payload.unbinds.push(makeUnbindTarget(system.screenshot));
+        payload.unbinds.push(makeUnbindTarget(system.screenrecord));
+        payload.unbinds.push(makeUnbindTarget(system.lens));
+        if (system.reload) payload.unbinds.push(makeUnbindTarget(system.reload));
+        if (system.quit) payload.unbinds.push(makeUnbindTarget(system.quit));
+
+        // Bind current system keybinds
+        payload.binds.push(makeBindFromCore(system.overview));
+        payload.binds.push(makeBindFromCore(system.powermenu));
+        payload.binds.push(makeBindFromCore(system.config));
+        payload.binds.push(makeBindFromCore(system.lockscreen));
+        payload.binds.push(makeBindFromCore(system.tools));
+        payload.binds.push(makeBindFromCore(system.screenshot));
+        payload.binds.push(makeBindFromCore(system.screenrecord));
+        payload.binds.push(makeBindFromCore(system.lens));
+        if (system.reload) payload.binds.push(makeBindFromCore(system.reload));
+        if (system.quit) payload.binds.push(makeBindFromCore(system.quit));
 
         // Process custom keybinds (keys[] and actions[] format).
         const customBinds = Config.keybindsLoader.adapter.custom;
@@ -273,7 +248,7 @@ QtObject {
                 if (bind.keys && bind.actions) {
                     // Unbind all keys first (always unbind regardless of layout)
                     for (let k = 0; k < bind.keys.length; k++) {
-                        unbindCommands.push(createUnbindFromKey(bind.keys[k]));
+                        payload.unbinds.push(makeUnbindTarget(bind.keys[k]));
                     }
 
                     // Only create binds if enabled
@@ -284,17 +259,16 @@ QtObject {
                                 const action = bind.actions[a];
                                 // Check if this action is compatible with the current layout
                                 if (isActionCompatibleWithLayout(action)) {
-                                    batchCommands.push(createBindFromKeyAction(bind.keys[k], action));
+                                    payload.binds.push(makeBindFromKeyAction(bind.keys[k], action));
                                 }
                             }
                         }
                     }
                 } else {
                     // Fallback for old format (shouldn't happen after normalization)
-                    unbindCommands.push(createUnbindCommand(bind));
+                    payload.unbinds.push(makeUnbindTarget(bind));
                     if (bind.enabled !== false) {
-                        const flags = bind.flags || "";
-                        batchCommands.push(createBindCommand(bind, flags));
+                        payload.binds.push(makeBindFromCore(bind));
                     }
                 }
             }
@@ -302,11 +276,9 @@ QtObject {
 
         storePreviousBinds();
 
-        // Combine unbind and bind in a single batch.
-        const fullBatchCommand = unbindCommands.join("; ") + "; " + batchCommands.join("; ");
-
-        console.log("CompositorKeybinds: Ejecutando batch command");
-        compositorProcess.command = ["axctl", "config", "raw-batch", fullBatchCommand];
+        // Send structured payload via axctl keybinds-batch.
+        console.log("CompositorKeybinds: Enviando keybinds-batch (" + payload.unbinds.length + " unbinds, " + payload.binds.length + " binds)");
+        compositorProcess.command = ["axctl", "config", "keybinds-batch", JSON.stringify(payload)];
         compositorProcess.running = true;
     }
 

@@ -1,7 +1,7 @@
 import QtQuick
-import Quickshell.Hyprland
+
 // pragma ComponentBehavior: Bound
-import QtQuick
+
 import QtQuick.Controls
 import QtQuick.Effects
 import Quickshell
@@ -281,7 +281,7 @@ Item {
                     readonly property var windowData: modelData
                     readonly property var toplevel: {
                         const toplevels = ToplevelManager.toplevels.values;
-                        return toplevels.find(t => `0x${t.HyprlandToplevel.address}` === windowData.address) || null;
+                        return toplevels.find(t => t.appId === (windowData.class || "") && t.title === (windowData.title || "")) || null;
                     }
 
                     // Override position tracking for immediate visual update
