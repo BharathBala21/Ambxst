@@ -335,6 +335,55 @@ Item {
                             pendingAttachments = list;
                         }
 
+                        function normalizeFilePath(path) {
+                            let p = path ? path.trim() : "";
+                            if (p.startsWith("file://"))
+                                p = p.substring(7);
+                            try {
+                                p = decodeURIComponent(p);
+                            } catch (e) {
+                            }
+                            return p;
+                        }
+
+                        function fileMimeForPath(path) {
+                            let ext = path.split(".").pop().toLowerCase();
+                            let mimeMap = {
+                                png: "image/png",
+                                jpg: "image/jpeg",
+                                jpeg: "image/jpeg",
+                                gif: "image/gif",
+                                webp: "image/webp",
+                                bmp: "image/bmp"
+                            };
+                            return mimeMap[ext] || "";
+                        }
+
+                        function addAttachmentFromFile(path) {
+                            let filePath = normalizeFilePath(path);
+                            if (!filePath)
+                                return;
+                            let mimeType = fileMimeForPath(filePath);
+                            if (!mimeType) {
+                                Ai.pushSystemMessage("Only image files are supported for attachments.");
+                                return;
+                            }
+                            attachmentReadProcess.filePath = filePath;
+                            attachmentReadProcess.mimeType = mimeType;
+                            attachmentReadProcess.fileName = filePath.split("/").pop();
+                            attachmentReadProcess.running = true;
+                        }
+
+                        function addAttachmentsFromUriList(text) {
+                            let lines = text.split("\n");
+                            for (let i = 0; i < lines.length; i++) {
+                                let line = lines[i].trim();
+                                if (line === "" || line.startsWith("#"))
+                                    continue;
+                                addAttachmentFromFile(line);
+                            }
+                        }
+
                         function removeAttachment(index) {
                             let list = pendingAttachments.slice();
                             list.splice(index, 1);
@@ -472,52 +521,119 @@ Item {
                             stdout: StdioCollector {
                                 onStreamFinished: {
                                     let filePath = text.trim();
-                                    if (filePath.length > 0) {
-                                        zenityReadProcess.filePath = filePath;
-                                        let ext = filePath.split(".").pop().toLowerCase();
-                                        let mimeMap = {
-                                            png: "image/png",
-                                            jpg: "image/jpeg",
-                                            jpeg: "image/jpeg",
-                                            gif: "image/gif",
-                                            webp: "image/webp",
-                                            bmp: "image/bmp"
-                                        };
-                                        zenityReadProcess.mimeType = mimeMap[ext] || "application/octet-stream";
-                                        zenityReadProcess.fileName = filePath.split("/").pop();
-                                        zenityReadProcess.running = true;
-                                    }
+                                    if (filePath.length > 0)
+                                        mainChatArea.addAttachmentFromFile(filePath);
                                 }
                             }
                         }
 
                         Process {
-                            id: zenityReadProcess
+                            id: attachmentReadProcess
                             property string filePath: ""
                             property string mimeType: ""
                             property string fileName: ""
-                            command: ["bash", "-c", "base64 -w 0 '" + filePath.replace(/'/g, "'\\''") + "'"]
+                            command: ["bash", "-c", "/usr/bin/base64 -w 0 '" + filePath.replace(/'/g, "'\\''") + "'"]
                             stdout: StdioCollector {
                                 onStreamFinished: {
                                     let data = text.trim();
                                     if (data.length > 0)
-                                        mainChatArea.addAttachment(zenityReadProcess.mimeType, data, zenityReadProcess.fileName);
+                                        mainChatArea.addAttachment(attachmentReadProcess.mimeType, data, attachmentReadProcess.fileName);
+                                    else if (attachmentReadProcess.filePath.length > 0)
+                                        Ai.pushSystemMessage("Failed to read attachment data.");
+                                }
+                            }
+                            stderr: StdioCollector {
+                                id: attachmentReadStderr
+                            }
+                            onExited: exitCode => {
+                                if (exitCode !== 0) {
+                                    let errorText = attachmentReadStderr.text.trim();
+                                    Ai.pushSystemMessage("Failed to read attachment: " + (errorText.length > 0 ? errorText : "unknown error"));
                                 }
                             }
                         }
 
                         Process {
-                            id: clipboardPasteProcess
-                            command: ["bash", "-c", "MIME=$(wl-paste --list-types 2>/dev/null | grep '^image/' | head -1); if [ -n \"$MIME\" ]; then DATA=$(wl-paste --type \"$MIME\" 2>/dev/null | base64 -w 0); echo \"$MIME\"; echo \"$DATA\"; fi"]
+                            id: clipboardTypesProcess
+                            command: ["wl-paste", "--list-types"]
                             stdout: StdioCollector {
                                 onStreamFinished: {
-                                    let lines = text.trim().split("\n");
-                                    if (lines.length >= 2 && lines[0].startsWith("image/")) {
-                                        let mime = lines[0].trim();
-                                        let data = lines[1].trim();
-                                        let ext = mime.split("/")[1] || "png";
-                                        mainChatArea.addAttachment(mime, data, "clipboard." + ext);
+                                    let types = text.trim().split("\n");
+                                    let imageType = "";
+                                    for (let i = 0; i < types.length; i++) {
+                                        if (types[i].startsWith("image/")) {
+                                            imageType = types[i].trim();
+                                            break;
+                                        }
                                     }
+                                    if (imageType.length > 0) {
+                                        clipboardImageProcess.mimeType = imageType;
+                                        clipboardImageProcess.running = true;
+                                        return;
+                                    }
+                                    if (types.indexOf("text/uri-list") !== -1) {
+                                        clipboardUrisProcess.running = true;
+                                        return;
+                                    }
+                                    Ai.pushSystemMessage("Clipboard does not contain an image or file.");
+                                }
+                            }
+                            stderr: StdioCollector {
+                                id: clipboardTypesStderr
+                            }
+                            onExited: exitCode => {
+                                if (exitCode !== 0) {
+                                    let err = clipboardTypesStderr.text.trim();
+                                    Ai.pushSystemMessage("Clipboard read failed: " + (err.length > 0 ? err : "unknown error"));
+                                }
+                            }
+                        }
+
+                        Process {
+                            id: clipboardImageProcess
+                            property string mimeType: ""
+                            command: ["bash", "-c", "wl-paste --type \"" + mimeType + "\" 2>/dev/null | /usr/bin/base64 -w 0" ]
+                            stdout: StdioCollector {
+                                onStreamFinished: {
+                                    let data = text.trim();
+                                    if (data.length > 0) {
+                                        let ext = clipboardImageProcess.mimeType.split("/")[1] || "png";
+                                        mainChatArea.addAttachment(clipboardImageProcess.mimeType, data, "clipboard." + ext);
+                                    } else {
+                                        Ai.pushSystemMessage("Clipboard image read returned no data.");
+                                    }
+                                }
+                            }
+                            stderr: StdioCollector {
+                                id: clipboardImageStderr
+                            }
+                            onExited: exitCode => {
+                                if (exitCode !== 0) {
+                                    let err = clipboardImageStderr.text.trim();
+                                    Ai.pushSystemMessage("Clipboard image read failed: " + (err.length > 0 ? err : "unknown error"));
+                                }
+                            }
+                        }
+
+                        Process {
+                            id: clipboardUrisProcess
+                            command: ["wl-paste", "--type", "text/uri-list"]
+                            stdout: StdioCollector {
+                                onStreamFinished: {
+                                    let data = text.trim();
+                                    if (data.length > 0)
+                                        mainChatArea.addAttachmentsFromUriList(data);
+                                    else
+                                        Ai.pushSystemMessage("Clipboard file list is empty.");
+                                }
+                            }
+                            stderr: StdioCollector {
+                                id: clipboardUrisStderr
+                            }
+                            onExited: exitCode => {
+                                if (exitCode !== 0) {
+                                    let err = clipboardUrisStderr.text.trim();
+                                    Ai.pushSystemMessage("Clipboard file read failed: " + (err.length > 0 ? err : "unknown error"));
                                 }
                             }
                         }
@@ -1098,6 +1214,22 @@ Item {
                                 radius: Styling.radius(4)
                                 enableShadow: true
 
+                                DropArea {
+                                    anchors.fill: parent
+                                    onDropped: drop => {
+                                        if (drop.urls && drop.urls.length > 0) {
+                                            for (let i = 0; i < drop.urls.length; i++)
+                                                mainChatArea.addAttachmentFromFile(drop.urls[i]);
+                                            drop.accepted = true;
+                                            return;
+                                        }
+                                        if (drop.text && drop.text.length > 0) {
+                                            mainChatArea.addAttachmentsFromUriList(drop.text);
+                                            drop.accepted = true;
+                                        }
+                                    }
+                                }
+
                                 ColumnLayout {
                                     anchors.fill: parent
                                     spacing: 6
@@ -1320,7 +1452,7 @@ Item {
                                                     }
                                                 }
                                                 if (event.key === Qt.Key_V && (event.modifiers & Qt.ControlModifier)) {
-                                                    clipboardPasteProcess.running = true;
+                                                    clipboardTypesProcess.running = true;
                                                     return;
                                                 }
                                                 if (event.key === Qt.Key_Escape) {

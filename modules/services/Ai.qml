@@ -139,6 +139,16 @@ Singleton {
     // Chat History List (files)
     property var chatHistory: []
 
+    FileView {
+        id: chatFileView
+        printErrors: false
+    }
+
+    FileView {
+        id: bodyFileView
+        printErrors: false
+    }
+
     // ============================================
     // TOOLS
     // ============================================
@@ -399,7 +409,7 @@ Singleton {
     }
 
     function writeTempBody(jsonBody, headers, endpoint) {
-        requestProcess.command = ["mkdir", "-p", tmpDir];
+        requestProcess.command = ["/usr/bin/mkdir", "-p", tmpDir];
         requestProcess.step = "mkdir";
         requestProcess.payload = {
             body: jsonBody,
@@ -411,9 +421,9 @@ Singleton {
 
     function executeRequest(payload) {
         let bodyPath = tmpDir + "/body.json";
-        writeBodyProcess.command = ["sh", "-c", "cat > " + bodyPath + " << 'AMBXST_EOF'\n" + payload.body + "\nAMBXST_EOF"];
-        writeBodyProcess.payload = payload;
-        writeBodyProcess.running = true;
+        bodyFileView.path = bodyPath;
+        bodyFileView.setText(payload.body);
+        Qt.callLater(() => runCurl(payload));
     }
 
     function runCurl(payload) {
@@ -439,7 +449,7 @@ Singleton {
             curlCmd = "curl -s --no-buffer -N -X POST \"" + payload.endpoint + "\" " + headerArgs + " -d @" + bodyPath;
         }
 
-        curlProcess.command = ["bash", "-c", curlCmd];
+        curlProcess.command = ["/usr/bin/bash", "-c", curlCmd];
         curlProcess.running = true;
     }
 
@@ -590,7 +600,9 @@ Singleton {
         let filename = chatDir + "/" + currentChatId + ".json";
         let data = JSON.stringify(currentChat, null, 2);
 
-        saveChatProcess.command = ["sh", "-c", "mkdir -p " + chatDir + " && cat > " + filename + " << 'AMBXST_EOF'\n" + data + "\nAMBXST_EOF"];
+        saveChatProcess.filePath = filename;
+        saveChatProcess.data = data;
+        saveChatProcess.command = ["/usr/bin/mkdir", "-p", chatDir];
         saveChatProcess.running = true;
     }
 
@@ -626,7 +638,19 @@ for f in files:
 
     Process {
         id: saveChatProcess
-        onExited: reloadHistory()
+        property string filePath: ""
+        property string data: ""
+        onExited: exitCode => {
+            if (exitCode === 0) {
+                if (filePath.length > 0)
+                    chatFileView.path = filePath;
+                if (data.length > 0)
+                    chatFileView.setText(data);
+                reloadHistory();
+            } else {
+                console.warn("Failed to create chat directory");
+            }
+        }
     }
 
     Process {
