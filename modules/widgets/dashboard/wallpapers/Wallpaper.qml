@@ -377,7 +377,7 @@ PanelWindow {
             }
 
             // Ejecutar matugen con configuración específica
-            var commandWithConfig = ["matugen", "image", matugenSource, "-c", decodeURIComponent(Qt.resolvedUrl("../../../../assets/matugen/config.toml").toString().replace("file://", "")), "-t", wallpaperConfig.adapter.matugenScheme];
+            var commandWithConfig = ["matugen", "image", matugenSource, "--source-color-index", "0", "-c", decodeURIComponent(Qt.resolvedUrl("../../../../assets/matugen/config.toml").toString().replace("file://", "")), "-t", wallpaperConfig.adapter.matugenScheme];
             if (Config.theme.lightMode) {
                 commandWithConfig.push("-m", "light");
             }
@@ -385,7 +385,7 @@ PanelWindow {
             matugenProcessWithConfig.running = true;
 
             // Ejecutar matugen normal en paralelo
-            var commandNormal = ["matugen", "image", matugenSource, "-t", wallpaperConfig.adapter.matugenScheme];
+            var commandNormal = ["matugen", "image", matugenSource, "--source-color-index", "0", "-t", wallpaperConfig.adapter.matugenScheme];
             if (Config.theme.lightMode) {
                 commandNormal.push("-m", "light");
             }
