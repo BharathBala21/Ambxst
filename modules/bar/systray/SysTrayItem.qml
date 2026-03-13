@@ -15,6 +15,7 @@ MouseArea {
     required property var bar
     required property SystemTrayItem item
     property int trayItemSize: 20
+    property bool isHovered: false
 
     acceptedButtons: Qt.LeftButton | Qt.RightButton
     Layout.fillHeight: bar.orientation === "horizontal"
@@ -168,5 +169,15 @@ MouseArea {
     Tinted {
         sourceItem: trayIcon
         anchors.fill: trayIcon
+    }
+
+    StyledToolTip {
+        show: root.isHovered
+        tooltipText: root.item.tooltipTitle || root.item.title
+        desciription: root.item.tooltipDescription || ""
+    }
+
+    HoverHandler {
+        onHoveredChanged: root.isHovered = hovered
     }
 }
