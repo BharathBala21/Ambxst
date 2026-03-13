@@ -294,7 +294,6 @@ ShellRoot {
                 _ = GlobalShortcuts.appId; // Force init (IPC pipe listener)
             });
         }
-
     }
 
     // Non-critical services — defer 2s after startup
