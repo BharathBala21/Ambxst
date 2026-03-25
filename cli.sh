@@ -54,6 +54,70 @@ Examples:
 EOF
 }
 
+AMBXST_HYPR_SOURCE="source = ~/.local/share/ambxst/hyprland.conf"
+AMBXST_HYPR_BLOCK=$(
+	cat <<'EOF'
+# Ambxst
+source = ~/.local/share/ambxst/hyprland.conf
+
+# OVERRIDES
+# Down here you can write or source anything that you want to override from Ambxst's settings.
+EOF
+)
+
+append_ambxst_hyprland_block() {
+	local conf="$1"
+
+	if [ -f "$conf" ] && grep -qF "$AMBXST_HYPR_SOURCE" "$conf"; then
+		echo "Ambxst Hyprland block already present in $conf"
+		return 0
+	fi
+
+	if [ -f "$conf" ] && [ -s "$conf" ]; then
+		printf "\n%s\n" "$AMBXST_HYPR_BLOCK" >>"$conf"
+	else
+		printf "%s\n" "$AMBXST_HYPR_BLOCK" >"$conf"
+	fi
+
+	echo "Added Ambxst Hyprland block to $conf"
+}
+
+remove_ambxst_hyprland_block() {
+	local conf="$1"
+
+	if [ ! -f "$conf" ]; then
+		echo "$conf does not exist"
+		return 0
+	fi
+
+	awk -v source="$AMBXST_HYPR_SOURCE" '
+		function is_remove(line) {
+			return line == source \
+				|| line == "# Ambxst" \
+				|| line == "# OVERRIDES" \
+				|| line == "# Down here you can write or source anything that you want to override from Ambxst'\''s settings."
+		}
+		{
+			lines[NR] = $0
+		}
+		END {
+			for (i = 1; i <= NR; i++) {
+				line = lines[i]
+				nextline = (i < NR) ? lines[i + 1] : ""
+				if (is_remove(line)) {
+					continue
+				}
+				if (line == "" && (is_remove(lines[i - 1]) || is_remove(nextline))) {
+					continue
+				}
+				print line
+			}
+		}
+	' "$conf" >"${conf}.tmp" && mv "${conf}.tmp" "$conf"
+
+	echo "Removed Ambxst Hyprland block from $conf"
+}
+
 find_ambxst_pid() {
 	# Try to find QuickShell process running shell.qml
 	# QuickShell binary can be named 'qs' or 'quickshell'
@@ -437,26 +501,11 @@ install)
 	TARGET="${2:-}"
 	if [ "$TARGET" = "hyprland" ]; then
 		HYPR_CONF="$HOME/.config/hypr/hyprland.conf"
-		SOURCE_LINE="source = $HOME/.local/share/ambxst/hyprland.conf"
-		
+
 		# Create directory if needed
 		mkdir -p "$HOME/.config/hypr"
-		
-		# Add source line if not present
-		if [ -f "$HYPR_CONF" ]; then
-			if ! grep -qF "source = $HOME/.local/share/ambxst/hyprland.conf" "$HYPR_CONF"; then
-				echo "" >> "$HYPR_CONF"
-				echo "# Added by Ambxst" >> "$HYPR_CONF"
-				echo "$SOURCE_LINE" >> "$HYPR_CONF"
-				echo "Added source line to $HYPR_CONF"
-			else
-				echo "Source line already present in $HYPR_CONF"
-			fi
-		else
-			echo "# Created by Ambxst" > "$HYPR_CONF"
-			echo "$SOURCE_LINE" >> "$HYPR_CONF"
-			echo "Created $HYPR_CONF with source line"
-		fi
+
+		append_ambxst_hyprland_block "$HYPR_CONF"
 	else
 		echo "Error: Unknown target '$TARGET'. Supported: hyprland"
 		exit 1
@@ -466,14 +515,8 @@ remove)
 	TARGET="${2:-}"
 	if [ "$TARGET" = "hyprland" ]; then
 		HYPR_CONF="$HOME/.config/hypr/hyprland.conf"
-		if [ -f "$HYPR_CONF" ]; then
-		# Remove the source line and the comment before it
-		sed -i '/# Added by Ambxst/d' "$HYPR_CONF"
-		sed -i '/source = .*\.local\/share\/ambxst\/hyprland\.conf/d' "$HYPR_CONF"
-			echo "Removed Ambxst source line from $HYPR_CONF"
-		else
-			echo "$HYPR_CONF does not exist"
-		fi
+
+		remove_ambxst_hyprland_block "$HYPR_CONF"
 	else
 		echo "Error: Unknown target '$TARGET'. Supported: hyprland"
 		exit 1
