@@ -39,6 +39,8 @@ Commands:
     help                              Show this help message
     version, -v, --version            Show Ambxst version
     goodbye                           Uninstall Ambxst :(
+    install <target>                    Install compositor config (hyprland)
+    remove <target>                    Remove compositor config (hyprland)
 
 Examples:
     ambxst brightness 75              Set all monitors to 75%
@@ -430,6 +432,52 @@ brightness)
 	;;
 version | -v | --version)
 	echo "Ambxst $(cat "${SCRIPT_DIR}/version")"
+	;;
+install)
+	TARGET="${2:-}"
+	if [ "$TARGET" = "hyprland" ]; then
+		HYPR_CONF="$HOME/.config/hypr/hyprland.conf"
+		SOURCE_LINE="source = $HOME/.local/share/ambxst/hyprland.conf"
+		
+		# Create directory if needed
+		mkdir -p "$HOME/.config/hypr"
+		
+		# Add source line if not present
+		if [ -f "$HYPR_CONF" ]; then
+			if ! grep -qF "source = $HOME/.local/share/ambxst/hyprland.conf" "$HYPR_CONF"; then
+				echo "" >> "$HYPR_CONF"
+				echo "# Added by Ambxst" >> "$HYPR_CONF"
+				echo "$SOURCE_LINE" >> "$HYPR_CONF"
+				echo "Added source line to $HYPR_CONF"
+			else
+				echo "Source line already present in $HYPR_CONF"
+			fi
+		else
+			echo "# Created by Ambxst" > "$HYPR_CONF"
+			echo "$SOURCE_LINE" >> "$HYPR_CONF"
+			echo "Created $HYPR_CONF with source line"
+		fi
+	else
+		echo "Error: Unknown target '$TARGET'. Supported: hyprland"
+		exit 1
+	fi
+	;;
+remove)
+	TARGET="${2:-}"
+	if [ "$TARGET" = "hyprland" ]; then
+		HYPR_CONF="$HOME/.config/hypr/hyprland.conf"
+		if [ -f "$HYPR_CONF" ]; then
+		# Remove the source line and the comment before it
+		sed -i '/# Added by Ambxst/d' "$HYPR_CONF"
+		sed -i '/source = .*\.local\/share\/ambxst\/hyprland\.conf/d' "$HYPR_CONF"
+			echo "Removed Ambxst source line from $HYPR_CONF"
+		else
+			echo "$HYPR_CONF does not exist"
+		fi
+	else
+		echo "Error: Unknown target '$TARGET'. Supported: hyprland"
+		exit 1
+	fi
 	;;
 goodbye)
 	echo "Uninstalling Ambxst..."
