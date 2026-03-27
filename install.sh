@@ -110,7 +110,7 @@ install_dependencies() {
   fedora)
     log_info "Enabling COPR repositories..."
     sudo dnf install -y --best --allowerasing --setopt=install_weak_deps=False dnf-plugins-core
-    yes | sudo dnf copr enable errornointernet/quickshell-git
+    yes | sudo dnf copr enable errornointernet/quickshell
     yes | sudo dnf copr enable solopasha/hyprland
     yes | sudo dnf copr enable zirconium/packages
     yes | sudo dnf copr enable iucar/cran
@@ -366,8 +366,6 @@ install_axctl() {
     log_info "Skipping axctl install on NixOS (managed by flake)"
     return
   fi
-
-
 
   log_info "Installing axctl..."
   curl -L get.axeni.de/axctl | sh
