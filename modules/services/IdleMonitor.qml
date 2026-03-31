@@ -1,5 +1,6 @@
 import QtQuick
 import Quickshell.Io
+import qs.modules.services
 
 Item {
     id: root
@@ -50,7 +51,6 @@ Item {
                         root.isIdle = json.is_idle;
                     }
                 } catch (e) {
-                    // Ignore parse errors
                 }
             }
         }
@@ -120,8 +120,8 @@ Item {
     }
 
     function _checkMediaInhibitor() {
-        if (!respectInhibitors) return;
-        
+        if (!root.respectInhibitors) return;
+
         var cmd = "axctl system media-inhibit-check";
         _mediaCheckProcess.command = ["sh", "-c", cmd];
         _mediaCheckProcess.running = true;
