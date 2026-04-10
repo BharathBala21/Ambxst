@@ -26,7 +26,7 @@ Singleton {
         notificationProcess.running = false;
         notificationProcess.command = [
             "notify-send",
-            "-a", "Ambxst Battery",
+
             "-u", urgency,
             "-i", "battery-caution",
             summary,
